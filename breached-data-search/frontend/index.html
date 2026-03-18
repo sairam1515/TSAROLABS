@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Breached Data Search — IndiaTrace</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #08090d;
+    --surface: #0f1118;
+    --surface2: #161821;
+    --border: #1f2235;
+    --accent: #f5a623;
+    --accent2: #e8421a;
+    --text: #e8eaf0;
+    --muted: #5a5f75;
+    --green: #3dffc0;
+    --card-bg: #0c0e16;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 60px;
+  }
+
+  .logo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .logo-mark {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+
+  .logo-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(61,255,192,0.06);
+    border: 1px solid rgba(61,255,192,0.18);
+    padding: 7px 14px;
+    border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.4; transform:scale(0.8); }
+  }
+
+  /* Search card */
+  .search-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .search-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent), transparent);
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .fields-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .optional-tag {
+    background: rgba(90,95,117,0.3);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .field-input {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+
+  .field-input::placeholder { color: var(--muted); }
+
+  .field-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(245,166,35,0.1);
+  }
+
+  /* Scope */
+  .domain-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .domain-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+
+  .domain-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(245,166,35,0.18);
+    border: 1px solid var(--accent);
+    padding: 6px 12px;
+    border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .globe {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid var(--accent);
+    position: relative;
+  }
+  .globe::before, .globe::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 1px solid rgba(245,166,35,0.55);
+    border-left: none;
+    border-right: none;
+    border-radius: 50%;
+  }
+  .globe::after {
+    inset: 2px 5px;
+    border: 1px solid rgba(245,166,35,0.55);
+    border-top: none;
+    border-bottom: none;
+  }
+
+  /* Search button */
+  .search-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent2) 0%, var(--accent) 100%);
+    border: none;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #08090d;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .search-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .search-btn:active { transform: translateY(0); }
+  .search-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-icon { font-size: 18px; }
+
+  /* Progress */
+  .progress-wrap {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 36px;
+    margin-bottom: 28px;
+  }
+
+  .progress-wrap.visible { display: block; }
+
+  .progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .progress-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .progress-bar-bg {
+    background: var(--border);
+    border-radius: 100px;
+    height: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 100px;
+    width: 0%;
+    transition: width 0.4s ease;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0%,100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+  }
+
+  .progress-log {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    min-height: 18px;
+    letter-spacing: 1px;
+  }
+
+  /* Results */
+  .results-wrap {
+    display: none;
+  }
+  .results-wrap.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .results-title {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .results-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .result-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 16px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .result-card:hover { border-color: rgba(245,166,35,0.3); }
+
+  .result-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 16px; bottom: 16px;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent2), var(--accent));
+    border-radius: 0 3px 3px 0;
+  }
+
+  .result-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .result-source {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(245,166,35,0.08);
+    border: 1px solid rgba(245,166,35,0.2);
+    padding: 3px 10px;
+    border-radius: 100px;
+    letter-spacing: 1px;
+  }
+
+  .result-domain-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--green);
+    background: rgba(61,255,192,0.06);
+    border: 1px solid rgba(61,255,192,0.15);
+    padding: 3px 10px;
+    border-radius: 100px;
+  }
+
+  .result-content {
+    font-size: 14px;
+    line-height: 1.75;
+    color: #cdd0db;
+  }
+
+  .result-content strong {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .result-content a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(245,166,35,0.3);
+  }
+
+  .result-content a:hover { border-color: var(--accent); }
+
+  /* Summary card */
+  .summary-card {
+    background: linear-gradient(135deg, rgba(245,166,35,0.07) 0%, rgba(232,66,26,0.05) 100%);
+    border: 1px solid rgba(245,166,35,0.25);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+
+  .summary-card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .summary-text {
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--text);
+  }
+
+  /* No results */
+  .no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .no-results .icon { font-size: 40px; margin-bottom: 16px; }
+
+  /* Error */
+  .error-card {
+    background: rgba(232,66,26,0.08);
+    border: 1px solid rgba(232,66,26,0.3);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: #ff7a5c;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .error-card.visible { display: block; }
+
+  /* Email button */
+  .email-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(61,255,192,0.07);
+    border: 1px solid rgba(61,255,192,0.3);
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--green);
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .email-btn:hover {
+    background: rgba(61,255,192,0.14);
+    border-color: var(--green);
+    transform: translateY(-1px);
+  }
+
+  /* Modal overlay */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8,9,13,0.85);
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.visible { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+    overflow: hidden;
+    animation: modalIn 0.2s ease;
+  }
+
+  @keyframes modalIn {
+    from { opacity:0; transform:translateY(16px) scale(0.97); }
+    to { opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green), rgba(61,255,192,0.2), transparent);
+  }
+
+  .modal-header {
+    padding: 28px 28px 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .modal-title-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--green);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .modal-close {
+    background: var(--border);
+    border: none;
+    color: var(--muted);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .modal-close:hover { background: var(--surface2); color: var(--text); }
+
+  .modal-body { padding: 0 28px 28px; }
+
+  .modal-field { margin-bottom: 16px; }
+
+  .modal-send-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #1a6b50 0%, #2adf9e 100%);
+    border: none;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #06120e;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .modal-send-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .modal-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .email-status {
+    display: none;
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+  .email-status.success {
+    display: block;
+    background: rgba(61,255,192,0.08);
+    border: 1px solid rgba(61,255,192,0.25);
+    color: var(--green);
+  }
+  .email-status.error {
+    display: block;
+    background: rgba(232,66,26,0.08);
+    border: 1px solid rgba(232,66,26,0.3);
+    color: #ff7a5c;
+  }
+
+  /* Disclaimer */
+  .disclaimer {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 40px;
+    letter-spacing: 1px;
+    line-height: 1.7;
+    opacity: 0.6;
+  }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    .fields-row { grid-template-columns: 1fr; }
+    .header { flex-direction: column; gap: 16px; }
+    .search-card { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">
+      <span class="logo-mark">// intelligence tool</span>
+      <span class="logo-title">Breached Data Search</span>
+      <span class="logo-sub">people · profiles · presence</span>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      SYSTEM ONLINE
+    </div>
+  </div>
+
+  <div class="search-card">
+    <div class="section-label">// subject identification</div>
+
+    <div class="fields-row">
+      <div class="field-group">
+        <label class="field-label" for="firstName">
+          First Name <span class="optional-tag">optional</span>
+        </label>
+        <input class="field-input" id="firstName" type="text" placeholder="e.g. Rahul" autocomplete="off"/>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="lastName">
+          Last Name <span class="optional-tag">optional</span>
+        </label>
+        <input class="field-input" id="lastName" type="text" placeholder="e.g. Sharma" autocomplete="off"/>
+      </div>
+    </div>
+
+    <div class="field-group" style="margin-bottom:20px">
+      <label class="field-label" for="emails">
+        Email(s) <span class="optional-tag">optional</span>
+      </label>
+      <input class="field-input" id="emails" type="text" placeholder="e.g. name@gmail.com, work@company.com" autocomplete="off"/>
+    </div>
+
+    <div class="field-group" style="margin-bottom:20px">
+      <label class="field-label" for="keywords">
+        Additional Context <span class="optional-tag">optional</span>
+      </label>
+      <input class="field-input" id="keywords" type="text" placeholder="e.g. Mumbai, software engineer, IIT" autocomplete="off"/>
+    </div>
+
+    <div class="domain-row">
+      <span class="domain-label">Scan scope:</span>
+      <div class="domain-chip" title="No domain/category restrictions">
+        <span class="globe" aria-hidden="true"></span>
+        Worldwide Web (entire public internet)
+      </div>
+    </div>
+
+    <button class="search-btn" id="searchBtn" onclick="runSearch()">
+      <span class="btn-icon">⬡</span>
+      INITIATE TRACE
+    </button>
+  </div>
+
+  <div class="error-card" id="errorCard"></div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <span class="progress-title">▶ SCANNING IN PROGRESS</span>
+      <span id="progressPct" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-log" id="progressLog">Initializing search agents...</div>
+  </div>
+
+  <div class="results-wrap" id="resultsWrap">
+    <div class="results-header">
+      <span class="results-title">Search Results</span>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="results-count" id="resultsCount"></span>
+        <button class="email-btn" onclick="openEmailModal()">
+          ✉ EMAIL REPORT
+        </button>
+      </div>
+    </div>
+    <div id="resultsContainer"></div>
+  </div>
+
+  <!-- Email Modal -->
+  <div class="modal-overlay" id="emailModal" onclick="handleOverlayClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title-label">// dispatch report</div>
+          <div class="modal-title">Email This Report</div>
+        </div>
+        <button class="modal-close" onclick="closeEmailModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="field-label" style="margin-bottom:8px;display:block;">Recipient Email</label>
+          <input class="field-input" id="recipientEmail" type="email" placeholder="colleague@company.com" autocomplete="off"/>
+        </div>
+        <div class="modal-field">
+          <label class="field-label" style="margin-bottom:8px;display:block;">Subject <span class="optional-tag">optional</span></label>
+          <input class="field-input" id="emailSubject" type="text" placeholder="Due Diligence Report — IndiaTrace"/>
+        </div>
+        <div class="modal-field">
+          <label class="field-label" style="margin-bottom:8px;display:block;">Note <span class="optional-tag">optional</span></label>
+          <textarea class="field-input" id="emailNote" rows="3" placeholder="Add a personal note..." style="resize:vertical;line-height:1.5;font-family:'Syne',sans-serif;"></textarea>
+        </div>
+        <button class="modal-send-btn" id="sendEmailBtn" onclick="sendEmail()">
+          <span>✉</span> SEND REPORT
+        </button>
+        <div class="email-status" id="emailStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    This tool uses configured, lawful threat-intel sources (e.g., HIBP if enabled) and returns metadata-only results.<br/>
+    Always respect privacy, consent, and applicable laws. Do not use this to target individuals.
+  </div>
+
+</div>
+
+<script>
+function setProgress(pct, log) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  if (log) document.getElementById('progressLog').textContent = log;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorCard');
+  el.textContent = '⚠ ERROR: ' + msg;
+  el.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('errorCard').classList.remove('visible');
+}
+
+const API_BASE = (window.INDIATRACE_API_BASE || 'http://127.0.0.1:8787').replace(/\/$/, '');
+
+function parseCsvEmails(raw) {
+  return raw
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .slice(0, 5);
+}
+
+async function runSearch() {
+  const firstName = document.getElementById('firstName').value.trim();
+  const lastName = document.getElementById('lastName').value.trim();
+  const emails = parseCsvEmails(document.getElementById('emails').value || '');
+  const keywords = document.getElementById('keywords').value.trim();
+
+  if (!firstName && !lastName && !keywords && emails.length === 0) {
+    showError('Please enter at least a name, some context, or an email to check.');
+    return;
+  }
+
+  hideError();
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-icon">◌</span> SCANNING...';
+
+  const progressWrap = document.getElementById('progressWrap');
+  const resultsWrap = document.getElementById('resultsWrap');
+  progressWrap.classList.add('visible');
+  resultsWrap.classList.remove('visible');
+  document.getElementById('resultsContainer').innerHTML = '';
+
+  const steps = [
+    [10, 'Initializing search agents...'],
+    [35, 'Running configured threat-intel checks...'],
+    [65, 'Normalizing and verifying matches...'],
+    [85, 'Preparing report...'],
+    [95, 'Finalizing...'],
+  ];
+
+  let stepIdx = 0;
+  const progressTimer = setInterval(() => {
+    if (stepIdx < steps.length) {
+      setProgress(steps[stepIdx][0], steps[stepIdx][1]);
+      stepIdx++;
+    }
+  }, 1800);
+
+  try {
+    const response = await fetch(`${API_BASE}/api/intel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName,
+        lastName,
+        keywords,
+        identifiers: { emails }
+      })
+    });
+
+    clearInterval(progressTimer);
+    setProgress(95, 'Parsing results...');
+
+    if (!response.ok) {
+      let msg = 'API request failed';
+      try {
+        const err = await response.json();
+        msg = err.error || msg;
+      } catch {}
+      throw new Error(msg);
+    }
+
+    const data = await response.json();
+    setProgress(100, 'Complete.');
+
+    setTimeout(() => {
+      progressWrap.classList.remove('visible');
+      renderResults(data, firstName, lastName);
+      btn.disabled = false;
+      btn.innerHTML = '<span class="btn-icon">⬡</span> INITIATE TRACE';
+    }, 600);
+
+  } catch (err) {
+    clearInterval(progressTimer);
+    progressWrap.classList.remove('visible');
+    showError(err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span class="btn-icon">⬡</span> INITIATE TRACE';
+  }
+}
+
+function renderResults(data, firstName, lastName) {
+  const wrap = document.getElementById('resultsWrap');
+  const container = document.getElementById('resultsContainer');
+  const name = [firstName, lastName].filter(Boolean).join(' ') || 'Subject';
+
+  // Store for email
+  lastSearchData = data;
+  lastSearchName = name;
+
+  wrap.classList.add('visible');
+
+  const matches = Array.isArray(data.matches) ? data.matches : [];
+  if (!data.ok || matches.length === 0) {
+    container.innerHTML = `
+      <div class="no-results">
+        <div class="icon">◌</div>
+        <div>NO VERIFIED MATCHES FOR "${name.toUpperCase()}"</div>
+        <div style="margin-top:8px;font-size:10px;opacity:0.6">Tip: add an email to check breach exposure via configured sources (e.g., HIBP)</div>
+      </div>`;
+    document.getElementById('resultsCount').textContent = '0 match(es)';
+    return;
+  }
+
+  document.getElementById('resultsCount').textContent = matches.length + ' match(es)';
+
+  let html = '';
+
+  if (data.risk_overview) {
+    html += `<div class="summary-card">
+      <div class="summary-card-title">// risk overview</div>
+      <div class="summary-text">
+        <strong>Risk:</strong> ${escapeHtml(String(data.risk_overview.level || 'unknown')).toUpperCase()}
+        (${escapeHtml(String(data.risk_overview.score ?? ''))})<br/>
+        ${escapeHtml(String(data.risk_overview.rationale || ''))}
+      </div>
+    </div>`;
+  }
+
+  matches.forEach((m) => {
+    const title = m.breach_name ? `Breach: ${m.breach_name}` : (m.source || 'Match');
+    const when = m.first_seen ? `First seen: ${m.first_seen}` : '';
+    const ident = m.identifier_matched?.value_redacted ? `Identifier: ${m.identifier_matched.value_redacted}` : '';
+    const conf = (typeof m.confidence === 'number') ? `Confidence: ${m.confidence}/100` : '';
+    const v = m.verification?.evidence_level ? `Evidence: ${m.verification.evidence_level}` : '';
+    const details = [when, ident, conf, v, m.verification?.notes].filter(Boolean).join('\n');
+    const urlLink = m.url_reference ? `<br/><a href="${escapeHtml(m.url_reference)}" target="_blank" rel="noopener">${escapeHtml(m.url_reference)}</a>` : '';
+    html += `<div class="result-card">
+      <div class="result-meta">
+        <span class="result-source">${escapeHtml(m.source || 'Unknown')}</span>
+        <span class="result-domain-tag">${escapeHtml(m.type || 'intel')}</span>
+      </div>
+      <div class="result-content">
+        <strong>${escapeHtml(title)}</strong><br/>
+        ${escapeHtml(details)}${urlLink}
+      </div>
+    </div>`;
+  });
+
+  if (Array.isArray(data.recommended_next_steps) && data.recommended_next_steps.length) {
+    html += `<div class="summary-card">
+      <div class="summary-card-title">// recommended next steps</div>
+      <div class="summary-text">${escapeHtml(data.recommended_next_steps.map(s => `• ${s}`).join('\n'))}</div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\n/g, '<br/>');
+}
+
+// Enter key support
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') runSearch();
+  if (e.key === 'Escape') closeEmailModal();
+});
+
+// ─── Email Modal ───────────────────────────────────────────────
+let lastSearchData = null;
+let lastSearchName = '';
+
+function openEmailModal() {
+  if (!lastSearchData) return;
+  const name = lastSearchName || 'Subject';
+  document.getElementById('emailSubject').value = `Due Diligence Report — ${name} | IndiaTrace`;
+  document.getElementById('emailStatus').className = 'email-status';
+  document.getElementById('emailStatus').textContent = '';
+  document.getElementById('sendEmailBtn').disabled = false;
+  document.getElementById('sendEmailBtn').innerHTML = '<span>✉</span> SEND REPORT';
+  document.getElementById('emailModal').classList.add('visible');
+}
+
+function closeEmailModal() {
+  document.getElementById('emailModal').classList.remove('visible');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('emailModal')) closeEmailModal();
+}
+
+function buildEmailHtml(data, name, note) {
+  const ts = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  let resultsHtml = '';
+  (data.results || []).forEach(r => {
+    const urlPart = r.url ? `<br/><a href="${r.url}" style="color:#f5a623;">${r.url}</a>` : '';
+    resultsHtml += `
+      <div style="background:#0c0e16;border:1px solid #1f2235;border-left:3px solid #f5a623;border-radius:10px;padding:18px 20px;margin-bottom:14px;">
+        <div style="margin-bottom:8px;">
+          <span style="background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.3);color:#f5a623;font-size:11px;padding:3px 10px;border-radius:100px;font-family:monospace;letter-spacing:1px;">${r.source || ''}</span>
+          <span style="background:rgba(61,255,192,0.06);border:1px solid rgba(61,255,192,0.2);color:#3dffc0;font-size:11px;padding:3px 10px;border-radius:100px;font-family:monospace;margin-left:6px;">${r.domain_type || ''}</span>
+        </div>
+        ${r.title ? `<div style="font-weight:700;color:#e8eaf0;margin-bottom:6px;">${r.title}</div>` : ''}
+        <div style="color:#cdd0db;font-size:14px;line-height:1.7;">${String(r.content || '').replace(/\n/g, '<br/>')}${urlPart}</div>
+      </div>`;
+  });
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#08090d;font-family:'Segoe UI',sans-serif;">
+  <div style="max-width:680px;margin:0 auto;padding:32px 20px;">
+    <div style="background:linear-gradient(135deg,#e8421a,#f5a623);border-radius:12px;padding:24px 28px;margin-bottom:24px;">
+      <div style="font-size:11px;letter-spacing:4px;color:rgba(8,9,13,0.7);font-family:monospace;text-transform:uppercase;margin-bottom:4px;">// intelligence tool</div>
+      <div style="font-size:28px;font-weight:800;color:#08090d;letter-spacing:-1px;">IndiaTrace</div>
+      <div style="font-size:11px;color:rgba(8,9,13,0.6);font-family:monospace;letter-spacing:2px;margin-top:2px;">people · profiles · presence</div>
+    </div>
+
+    ${note ? `<div style="background:rgba(245,166,35,0.07);border:1px solid rgba(245,166,35,0.2);border-radius:10px;padding:16px 20px;margin-bottom:20px;color:#e8eaf0;font-size:14px;line-height:1.6;">${note.replace(/\n/g,'<br/>')}</div>` : ''}
+
+    <div style="background:#0f1118;border:1px solid #1f2235;border-radius:12px;padding:20px 24px;margin-bottom:20px;">
+      <div style="font-size:11px;letter-spacing:3px;color:#f5a623;font-family:monospace;text-transform:uppercase;margin-bottom:10px;">// intelligence summary</div>
+      <div style="color:#e8eaf0;font-size:15px;line-height:1.8;">${data.summary || 'No summary available.'}</div>
+    </div>
+
+    <div style="font-size:11px;letter-spacing:3px;color:#5a5f75;font-family:monospace;text-transform:uppercase;margin-bottom:14px;">// findings (${(data.results||[]).length} records)</div>
+    ${resultsHtml}
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #1f2235;font-family:monospace;font-size:10px;color:#5a5f75;text-align:center;letter-spacing:1px;line-height:1.8;">
+      Generated by IndiaTrace · ${ts} IST<br/>
+      Subject: ${name} · Publicly available data only
+    </div>
+  </div>
+</body></html>`;
+}
+
+async function sendEmail() {
+  const to = document.getElementById('recipientEmail').value.trim();
+  const subject = document.getElementById('emailSubject').value.trim() || 'IndiaTrace Due Diligence Report';
+  const note = document.getElementById('emailNote').value.trim();
+
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    showEmailStatus('error', '⚠ Please enter a valid recipient email address.');
+    return;
+  }
+
+  const btn = document.getElementById('sendEmailBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>◌</span> OPENING MAIL...';
+  document.getElementById('emailStatus').className = 'email-status';
+
+  try {
+    const reportJson = JSON.stringify(lastSearchData || {}, null, 2);
+    const bodyParts = [];
+    if (note) bodyParts.push(note);
+    bodyParts.push(`\nIndiaTrace report for: ${lastSearchName || 'Subject'}\n`);
+    bodyParts.push(reportJson);
+    const body = bodyParts.join('\n');
+
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+
+    showEmailStatus('success', `✓ OPENED EMAIL DRAFT FOR ${to.toUpperCase()} (review before sending)`);
+    btn.innerHTML = '✓ OPENED';
+    setTimeout(() => {
+      closeEmailModal();
+      btn.disabled = false;
+      btn.innerHTML = '<span>✉</span> SEND REPORT';
+    }, 1500);
+  } catch (err) {
+    showEmailStatus('error', '⚠ ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span>✉</span> SEND REPORT';
+  }
+}
+
+function showEmailStatus(type, msg) {
+  const el = document.getElementById('emailStatus');
+  el.className = 'email-status ' + type;
+  el.textContent = msg;
+}
+</script>
+</body>
+</html>
