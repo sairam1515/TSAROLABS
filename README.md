@@ -24,3 +24,8 @@ python3 -m http.server 5173 --bind 127.0.0.1
 ```
 
 Open `http://127.0.0.1:5173/index.html`.
+
+### API (local)
+
+- `POST /api/intel` — breach exposure (HIBP if `HIBP_API_KEY` is set)
+- `POST /api/footprint` — **digital footprint**: curated open-web search links + verification checklist (same JSON body as `/api/intel`; no social scraping)

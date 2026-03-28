@@ -694,6 +694,13 @@
       <input class="field-input" id="keywords" type="text" placeholder="e.g. Mumbai, software engineer, IIT" autocomplete="off"/>
     </div>
 
+    <div class="field-group" style="margin-bottom:20px">
+      <label class="field-label" for="threatIntel">
+        Threat Intel (IOCs) <span class="optional-tag">optional</span>
+      </label>
+      <textarea class="field-input" id="threatIntel" rows="3" placeholder="Paste usernames, domains, IPs, URLs… (comma/newline separated)" style="resize:vertical;line-height:1.5;font-family:'Syne',sans-serif;"></textarea>
+    </div>
+
     <div class="domain-row">
       <span class="domain-label">Scan scope:</span>
       <div class="domain-chip" title="No domain/category restrictions">
@@ -723,7 +730,7 @@
 
   <div class="results-wrap" id="resultsWrap">
     <div class="results-header">
-      <span class="results-title">Search Results</span>
+      <span class="results-title">Investigation report</span>
       <div style="display:flex;align-items:center;gap:12px;">
         <span class="results-count" id="resultsCount"></span>
         <button class="email-btn" onclick="openEmailModal()">
@@ -766,8 +773,8 @@
   </div>
 
   <div class="disclaimer">
-    This tool uses configured, lawful threat-intel sources (e.g., HIBP if enabled) and returns metadata-only results.<br/>
-    Always respect privacy, consent, and applicable laws. Do not use this to target individuals.
+    Breach checks use configured sources (e.g., HIBP). The digital footprint section is a map of <strong>public web search links</strong> for your own review—no social scraping or ownership claims.<br/>
+    Always respect privacy, consent, and applicable laws.
   </div>
 
 </div>
@@ -800,14 +807,24 @@ function parseCsvEmails(raw) {
     .slice(0, 5);
 }
 
+function parseIocs(raw) {
+  return String(raw || '')
+    .split(/[\n,]+/g)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .slice(0, 25);
+}
+
 async function runSearch() {
   const firstName = document.getElementById('firstName').value.trim();
   const lastName = document.getElementById('lastName').value.trim();
   const emails = parseCsvEmails(document.getElementById('emails').value || '');
   const keywords = document.getElementById('keywords').value.trim();
+  const iocs = parseIocs(document.getElementById('threatIntel').value || '');
 
-  if (!firstName && !lastName && !keywords && emails.length === 0) {
-    showError('Please enter at least a name, some context, or an email to check.');
+  if (!firstName && !lastName && !keywords && emails.length === 0 && iocs.length === 0) {
+    showError('Please enter at least a name, some context, an email, or some IOCs to check.');
     return;
   }
 
@@ -824,10 +841,11 @@ async function runSearch() {
 
   const steps = [
     [10, 'Initializing search agents...'],
-    [35, 'Running configured threat-intel checks...'],
-    [65, 'Normalizing and verifying matches...'],
-    [85, 'Preparing report...'],
-    [95, 'Finalizing...'],
+    [30, 'Checking breach exposure (HIBP)...'],
+    [55, 'Building digital footprint map (open web)...'],
+    [75, 'Normalizing observables...'],
+    [90, 'Preparing report...'],
+    [97, 'Finalizing...'],
   ];
 
   let stepIdx = 0;
@@ -839,35 +857,50 @@ async function runSearch() {
   }, 1800);
 
   try {
-    const response = await fetch(`${API_BASE}/api/intel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName,
-        lastName,
-        keywords,
-        identifiers: { emails }
+    const payload = {
+      firstName,
+      lastName,
+      keywords,
+      identifiers: { emails, iocs }
+    };
+    const [intelRes, footprintRes] = await Promise.all([
+      fetch(`${API_BASE}/api/intel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }),
+      fetch(`${API_BASE}/api/footprint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
-    });
+    ]);
 
     clearInterval(progressTimer);
     setProgress(95, 'Parsing results...');
 
-    if (!response.ok) {
+    if (!intelRes.ok) {
       let msg = 'API request failed';
       try {
-        const err = await response.json();
+        const err = await intelRes.json();
         msg = err.error || msg;
       } catch {}
       throw new Error(msg);
     }
 
-    const data = await response.json();
+    const data = await intelRes.json();
+    let footprint = null;
+    if (footprintRes.ok) {
+      try {
+        footprint = await footprintRes.json();
+      } catch {}
+    }
+
     setProgress(100, 'Complete.');
 
     setTimeout(() => {
       progressWrap.classList.remove('visible');
-      renderResults(data, firstName, lastName);
+      renderResults(data, footprint, firstName, lastName);
       btn.disabled = false;
       btn.innerHTML = '<span class="btn-icon">⬡</span> INITIATE TRACE';
     }, 600);
@@ -881,32 +914,97 @@ async function runSearch() {
   }
 }
 
-function renderResults(data, firstName, lastName) {
+function renderResults(data, footprint, firstName, lastName) {
   const wrap = document.getElementById('resultsWrap');
   const container = document.getElementById('resultsContainer');
   const name = [firstName, lastName].filter(Boolean).join(' ') || 'Subject';
 
-  // Store for email
-  lastSearchData = data;
+  lastSearchData = Object.assign({}, data, { digital_footprint: footprint || null });
   lastSearchName = name;
 
   wrap.classList.add('visible');
 
   const matches = Array.isArray(data.matches) ? data.matches : [];
-  if (!data.ok || matches.length === 0) {
-    container.innerHTML = `
-      <div class="no-results">
-        <div class="icon">◌</div>
-        <div>NO VERIFIED MATCHES FOR "${name.toUpperCase()}"</div>
-        <div style="margin-top:8px;font-size:10px;opacity:0.6">Tip: add an email to check breach exposure via configured sources (e.g., HIBP)</div>
-      </div>`;
-    document.getElementById('resultsCount').textContent = '0 match(es)';
-    return;
-  }
+  const observables = Array.isArray(data.observables) ? data.observables : [];
 
-  document.getElementById('resultsCount').textContent = matches.length + ' match(es)';
+  document.getElementById('resultsCount').textContent = matches.length + ' breach match(es)';
 
   let html = '';
+
+  if (footprint && footprint.ok) {
+    html += `<div class="summary-card">
+      <div class="summary-card-title">// digital footprint (open web)</div>
+      <div class="summary-text">${escapeHtml(footprint.summary || '')}</div>
+    </div>`;
+
+    if (footprint.identity) {
+      const id = footprint.identity;
+      const er = (id.emails_redacted || []).filter(Boolean).join(', ');
+      html += `<div class="summary-card">
+        <div class="summary-card-title">// identity snapshot</div>
+        <div class="summary-text">
+          <strong>Display name:</strong> ${escapeHtml(id.display_name || '')}<br/>
+          <strong>Context (city, employer, etc.):</strong> ${escapeHtml(id.context || '')}${er ? `<br/><strong>Email(s) (redacted):</strong> ${escapeHtml(er)}` : ''}
+        </div>
+      </div>`;
+    }
+
+    if (footprint.handles && footprint.handles.length) {
+      html += `<div class="summary-card">
+        <div class="summary-card-title">// handles to correlate</div>
+        <div class="summary-text">${escapeHtml(footprint.handles.map((h) => `• ${h.raw} → "${h.normalized}"`).join('\n'))}</div>
+      </div>`;
+    }
+
+    (footprint.suggested_searches || []).forEach((s) => {
+      html += `<div class="result-card">
+        <div class="result-meta">
+          <span class="result-source">${escapeHtml(s.category || 'Open web')}</span>
+          <span class="result-domain-tag">footprint</span>
+        </div>
+        <div class="result-content">
+          <strong>${escapeHtml(s.label)}</strong><br/>
+          ${escapeHtml(s.description || '')}<br/>
+          <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.url)}</a>
+        </div>
+      </div>`;
+    });
+
+    (footprint.site_specific_queries || []).forEach((s) => {
+      html += `<div class="result-card">
+        <div class="result-meta">
+          <span class="result-source">${escapeHtml(s.platform || 'Platform')}</span>
+          <span class="result-domain-tag">site query</span>
+        </div>
+        <div class="result-content">
+          <strong>${escapeHtml(s.query || '')}</strong><br/>
+          ${escapeHtml(s.description || '')}<br/>
+          <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">Open search →</a>
+        </div>
+      </div>`;
+    });
+
+    if (footprint.verification_checklist && footprint.verification_checklist.length) {
+      html += `<div class="summary-card">
+        <div class="summary-card-title">// verification checklist</div>
+        <div class="summary-text">${escapeHtml(footprint.verification_checklist.map((x) => `• ${x}`).join('\n'))}</div>
+      </div>`;
+    }
+
+    if (footprint.limitations && footprint.limitations.length) {
+      html += `<div class="summary-card">
+        <div class="summary-card-title">// footprint limitations</div>
+        <div class="summary-text">${escapeHtml(footprint.limitations.map((x) => `• ${x}`).join('\n'))}</div>
+      </div>`;
+    }
+  }
+
+  if (observables.length) {
+    html += `<div class="summary-card">
+      <div class="summary-card-title">// observables</div>
+      <div class="summary-text">${escapeHtml(observables.map(o => `• ${o.type}: ${o.value}`).join('\n'))}</div>
+    </div>`;
+  }
 
   if (data.risk_overview) {
     html += `<div class="summary-card">
@@ -916,6 +1014,13 @@ function renderResults(data, firstName, lastName) {
         (${escapeHtml(String(data.risk_overview.score ?? ''))})<br/>
         ${escapeHtml(String(data.risk_overview.rationale || ''))}
       </div>
+    </div>`;
+  }
+
+  if (!matches.length) {
+    html += `<div class="summary-card">
+      <div class="summary-card-title">// breach exposure (HIBP)</div>
+      <div class="summary-text">No verified breach matches for the email(s) you checked. Add an email above to run HIBP (if configured).</div>
     </div>`;
   }
 
@@ -943,6 +1048,13 @@ function renderResults(data, firstName, lastName) {
     html += `<div class="summary-card">
       <div class="summary-card-title">// recommended next steps</div>
       <div class="summary-text">${escapeHtml(data.recommended_next_steps.map(s => `• ${s}`).join('\n'))}</div>
+    </div>`;
+  }
+
+  if (Array.isArray(data.recommended_sources) && data.recommended_sources.length) {
+    html += `<div class="summary-card">
+      <div class="summary-card-title">// recommended sources (optional)</div>
+      <div class="summary-text">${escapeHtml(data.recommended_sources.map(s => `• ${s.name}: ${s.what_it_verifies} (${s.how_to_enable})`).join('\n'))}</div>
     </div>`;
   }
 
